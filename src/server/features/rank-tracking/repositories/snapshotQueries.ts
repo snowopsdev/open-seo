@@ -164,7 +164,7 @@ export async function getPositionMatrix(
  * No keywordIds needed — scoped to the config via a completed-runs subquery,
  * so subset runs are included automatically.
  */
-export async function getSnapshotsForConfig(
+async function getSnapshotsForConfig(
   configId: string,
   opts: { beforeDate?: string; order: "latest" | "earliest" },
 ) {
@@ -231,72 +231,6 @@ export async function getSnapshotsBeforeDate(
   return getSnapshotsForConfig(configId, { beforeDate, order: "latest" });
 }
 
-export async function getEarliestSnapshotsForKeywords(
-  configId: string,
-  keywordIds: string[],
-) {
-  if (keywordIds.length === 0) return [];
-
-  const completedRunIds = db
-    .select({ id: rankCheckRuns.id })
-    .from(rankCheckRuns)
-    .where(
-      and(
-        eq(rankCheckRuns.configId, configId),
-        eq(rankCheckRuns.status, "completed"),
-      ),
-    );
-
-  // D1 caps bound parameters at 100 per statement. The query binds N keyword
-  // IDs plus 4 params from the completedRunIds subquery (referenced twice).
-  // (Postgres allows far more, but the chunking is harmless there.)
-  const CHUNK_SIZE = 90;
-  const allResults: Awaited<ReturnType<typeof getSnapshotsForConfig>> = [];
-
-  for (let i = 0; i < keywordIds.length; i += CHUNK_SIZE) {
-    const chunk = keywordIds.slice(i, i + CHUNK_SIZE);
-
-    const grouped = db
-      .select({
-        trackingKeywordId: rankSnapshots.trackingKeywordId,
-        device: rankSnapshots.device,
-        targetCheckedAt: min(rankSnapshots.checkedAt).as("target_checked_at"),
-      })
-      .from(rankSnapshots)
-      .where(
-        and(
-          inArray(rankSnapshots.runId, completedRunIds),
-          inArray(rankSnapshots.trackingKeywordId, chunk),
-        ),
-      )
-      .groupBy(rankSnapshots.trackingKeywordId, rankSnapshots.device)
-      .as("grouped");
-
-    const rows = await db
-      .select({
-        id: rankSnapshots.id,
-        runId: rankSnapshots.runId,
-        trackingKeywordId: rankSnapshots.trackingKeywordId,
-        keyword: rankSnapshots.keyword,
-        device: rankSnapshots.device,
-        position: rankSnapshots.position,
-        url: rankSnapshots.url,
-        serpFeatures: rankSnapshots.serpFeatures,
-        checkedAt: rankSnapshots.checkedAt,
-      })
-      .from(rankSnapshots)
-      .innerJoin(
-        grouped,
-        and(
-          eq(rankSnapshots.trackingKeywordId, grouped.trackingKeywordId),
-          eq(rankSnapshots.device, grouped.device),
-          eq(rankSnapshots.checkedAt, grouped.targetCheckedAt),
-        ),
-      )
-      .where(inArray(rankSnapshots.runId, completedRunIds));
-
-    allResults.push(...rows);
-  }
-
-  return allResults;
+export async function getEarliestSnapshotsForConfig(configId: string) {
+  return getSnapshotsForConfig(configId, { order: "earliest" });
 }

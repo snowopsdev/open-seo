@@ -1,0 +1,1 @@
+CREATE INDEX "rank_tracking_configs_due_idx" ON "rank_tracking_configs" USING btree ("is_active","next_check_at");

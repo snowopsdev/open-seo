@@ -1,6 +1,7 @@
 import { getAuth, hasHostedAuthConfig } from "@/lib/auth";
 import { getActiveOrganizationId } from "@/lib/auth-session";
 import { AuthRepository } from "@/server/auth/repositories/AuthRepository";
+import { ProjectRepository } from "@/server/features/projects/repositories/ProjectRepository";
 import { resolveActiveHostedOrganization } from "@/server/auth/default-hosted-organization";
 import { AppError } from "@/server/lib/errors";
 import type { EnsuredUserContext } from "./types";
@@ -24,6 +25,7 @@ async function requireHostedSession(headers: Headers) {
 
 export async function resolveHostedContext(
   headers: Headers,
+  projectId?: string | null,
 ): Promise<EnsuredUserContext> {
   const session = await requireHostedSession(headers);
   const activeOrganizationId = getActiveOrganizationId(session);
@@ -31,11 +33,18 @@ export async function resolveHostedContext(
   if (activeOrganizationId) {
     // The session's activeOrganizationId is only a hint (it can outlive a
     // membership: removal, org deletion, cookie cache). The member row is the
-    // authorization fact and also carries the caller's role.
-    const membership = await AuthRepository.getMembership(
-      session.user.id,
-      activeOrganizationId,
-    );
+    // authorization fact and also carries the caller's role. The project
+    // lookup runs alongside it to save a DB round trip; it is scoped to the
+    // same organization and only used once the membership is confirmed.
+    const [membership, project] = await Promise.all([
+      AuthRepository.getMembership(session.user.id, activeOrganizationId),
+      projectId
+        ? ProjectRepository.getProjectForOrganization(
+            projectId,
+            activeOrganizationId,
+          )
+        : null,
+    ]);
 
     if (membership) {
       return {
@@ -44,6 +53,7 @@ export async function resolveHostedContext(
         emailVerified: session.user.emailVerified ?? false,
         organizationId: activeOrganizationId,
         role: membership.role,
+        project: project ?? undefined,
       };
     }
   }

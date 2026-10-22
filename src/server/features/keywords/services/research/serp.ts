@@ -84,7 +84,6 @@ async function getSerpLiveAnalysis(
 
   const cacheKey = await buildCacheKey("serp:analysis", {
     organizationId: billingCustomer.organizationId,
-    projectId: input.projectId,
     keyword,
     locationCode: input.locationCode,
     languageCode: input.languageCode,

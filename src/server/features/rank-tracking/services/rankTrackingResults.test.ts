@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   getLatestSnapshotsForKeywords: vi.fn(),
   getSnapshotsBeforeDate: vi.fn(),
   getLatestRunForConfig: vi.fn(),
-  getEarliestSnapshotsForKeywords: vi.fn(),
+  getEarliestSnapshotsForConfig: vi.fn(),
 }));
 
 vi.mock(
@@ -23,7 +23,7 @@ describe("getLatestResults", () => {
     mocks.getKeywordsForConfig.mockResolvedValue([]);
     mocks.getLatestSnapshotsForKeywords.mockResolvedValue([]);
     mocks.getSnapshotsBeforeDate.mockResolvedValue([]);
-    mocks.getEarliestSnapshotsForKeywords.mockResolvedValue([]);
+    mocks.getEarliestSnapshotsForConfig.mockResolvedValue([]);
   });
 
   it("keeps snapshot freshness when a newer run fails before writing snapshots", async () => {

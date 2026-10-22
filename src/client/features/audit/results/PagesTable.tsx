@@ -7,6 +7,7 @@ import {
 import { ExternalLink } from "lucide-react";
 import { Badge } from "@/client/components/ui/badge";
 import { DataTable, useDataTable } from "@/client/components/table/DataTable";
+import { TablePagination } from "@/client/components/table/TablePagination";
 import { SortableHeader } from "@/client/components/table/SortableHeader";
 import {
   extractHostname,
@@ -194,6 +195,8 @@ function buildPagesColumns({
   ];
 }
 
+const PAGE_SIZE = 100;
+
 export function PagesTable({
   pages,
   startUrl,
@@ -236,6 +239,10 @@ export function PagesTable({
     state: { sorting },
     onSortingChange: setSorting,
     withSorting: true,
+    // Large audits reach thousands of pages; rendering them all makes every
+    // sort and filter keystroke slow.
+    withPagination: true,
+    initialState: { pagination: { pageIndex: 0, pageSize: PAGE_SIZE } },
   });
 
   const resetFilters = () => setFilters(EMPTY_PAGES_FILTERS);
@@ -265,6 +272,16 @@ export function PagesTable({
             />
           ) : null}
         </>
+      }
+      footer={
+        filteredPages.length > PAGE_SIZE ? (
+          <TablePagination
+            page={table.getState().pagination.pageIndex + 1}
+            pageSize={PAGE_SIZE}
+            totalCount={filteredPages.length}
+            onPageChange={(page) => table.setPageIndex(page - 1)}
+          />
+        ) : undefined
       }
     />
   );

@@ -1,3 +1,4 @@
+import { waitUntil } from "cloudflare:workers";
 import { AppError } from "@/server/lib/errors";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
 import type { CreditFeature } from "@/shared/billing-credit-features";
@@ -215,6 +216,8 @@ async function buildResearchCacheKey(
   return buildCacheKey("kw:research", {
     cacheVersion: CACHE_VERSION,
     organizationId: billingCustomer.organizationId,
+    // Project-scoped, unlike other research caches: a hit skips persistRows,
+    // and keyword metrics are stored per project.
     projectId: input.projectId,
     keywords: normalizedKeywords,
     locationCode: input.locationCode,
@@ -232,21 +235,19 @@ function persistRows(
   input: ResolvedResearchKeywordsInput,
   rows: EnrichedKeyword[],
 ): Promise<void> {
-  return Promise.all(
-    rows.map((row) =>
-      KeywordResearchRepository.upsertKeywordMetric({
-        projectId: input.projectId,
-        keyword: row.keyword,
-        locationCode: input.locationCode,
-        languageCode: input.languageCode,
-        searchVolume: row.searchVolume,
-        cpc: row.cpc,
-        competition: row.competition,
-        keywordDifficulty: row.keywordDifficulty,
-        intent: row.intent,
-        monthlySearchesJson: JSON.stringify(row.trend),
-      }),
-    ),
+  return KeywordResearchRepository.upsertKeywordMetrics(
+    rows.map((row) => ({
+      projectId: input.projectId,
+      keyword: row.keyword,
+      locationCode: input.locationCode,
+      languageCode: input.languageCode,
+      searchVolume: row.searchVolume,
+      cpc: row.cpc,
+      competition: row.competition,
+      keywordDifficulty: row.keywordDifficulty,
+      intent: row.intent,
+      monthlySearchesJson: JSON.stringify(row.trend),
+    })),
   ).then(
     () => undefined,
     (error: unknown) => {
@@ -329,8 +330,9 @@ export async function research(
 
   await setCached(cacheKey, result, CACHE_TTL.researchResult);
   // Keyword metrics are stored per country, so local rows are not persisted.
+  // waitUntil keeps the write alive after the response is sent.
   if (!effectiveInput.locationName)
-    void persistRows(effectiveInput, result.rows);
+    waitUntil(persistRows(effectiveInput, result.rows));
 
   return result;
 }

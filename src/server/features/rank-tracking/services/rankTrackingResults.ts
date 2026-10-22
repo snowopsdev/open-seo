@@ -71,21 +71,14 @@ export async function getLatestResults(
 
   // Fallback: for keyword+device combos with no comparison snapshot before
   // the target date, use the earliest available snapshot as a baseline.
-  const missingKeywordIds: string[] = [];
-  for (const snap of currentSnapshots) {
-    const key = `${snap.trackingKeywordId}:${snap.device}`;
-    if (!previousPositions.has(key)) {
-      missingKeywordIds.push(snap.trackingKeywordId);
-    }
-  }
+  const hasMissingBaseline = currentSnapshots.some(
+    (snap) =>
+      !previousPositions.has(`${snap.trackingKeywordId}:${snap.device}`),
+  );
 
-  if (missingKeywordIds.length > 0) {
-    const uniqueMissingIds = [...new Set(missingKeywordIds)];
+  if (hasMissingBaseline) {
     const earliestSnapshots =
-      await RankTrackingRepository.getEarliestSnapshotsForKeywords(
-        configId,
-        uniqueMissingIds,
-      );
+      await RankTrackingRepository.getEarliestSnapshotsForConfig(configId);
     for (const snap of earliestSnapshots) {
       const key = `${snap.trackingKeywordId}:${snap.device}`;
       if (!previousPositions.has(key)) {

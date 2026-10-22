@@ -10,10 +10,11 @@ const mocks = vi.hoisted(() => ({
   cache: new Map<string, string>(),
   fetchRows: vi.fn(),
   adsSearchVolume: vi.fn(),
-  upsertKeywordMetric: vi.fn().mockResolvedValue(undefined),
+  upsertKeywordMetrics: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("cloudflare:workers", () => ({
+  waitUntil: () => {},
   env: {
     R2: {
       get: async (key: string) => {
@@ -49,7 +50,7 @@ vi.mock(
   "@/server/features/keywords/repositories/KeywordResearchRepository",
   () => ({
     KeywordResearchRepository: {
-      upsertKeywordMetric: mocks.upsertKeywordMetric,
+      upsertKeywordMetrics: mocks.upsertKeywordMetrics,
     },
   }),
 );
@@ -124,12 +125,14 @@ it("keeps shared-volume keywords independently filterable through research and c
   expect(cached).toEqual(fresh);
   expect(fresh.rows).toContainEqual(opportunity);
   expect(fresh.source).toBe("blended");
-  expect(mocks.upsertKeywordMetric).toHaveBeenCalledWith(
-    expect.objectContaining({
-      keyword: "caregiver",
-      keywordDifficulty: 20,
-      intent: "commercial",
-    }),
+  expect(mocks.upsertKeywordMetrics).toHaveBeenCalledWith(
+    expect.arrayContaining([
+      expect.objectContaining({
+        keyword: "caregiver",
+        keywordDifficulty: 20,
+        intent: "commercial",
+      }),
+    ]),
   );
   const filtered = applyKeywordFiltersAndSort({
     rows: cached.rows,
@@ -220,11 +223,13 @@ it("replaces national volume with local volume and never falls back to national"
     }),
   );
   // Keyword metrics are stored per country: only national numbers persist.
-  expect(mocks.upsertKeywordMetric).toHaveBeenCalledWith(
-    expect.objectContaining({ keyword: "plumber", searchVolume: 673000 }),
+  expect(mocks.upsertKeywordMetrics).toHaveBeenCalledWith(
+    expect.arrayContaining([
+      expect.objectContaining({ keyword: "plumber", searchVolume: 673000 }),
+    ]),
   );
-  expect(mocks.upsertKeywordMetric).not.toHaveBeenCalledWith(
-    expect.objectContaining({ searchVolume: 2900 }),
+  expect(mocks.upsertKeywordMetrics).not.toHaveBeenCalledWith(
+    expect.arrayContaining([expect.objectContaining({ searchVolume: 2900 })]),
   );
 
   expect(await research(localInput, customer)).toEqual(result);
@@ -243,7 +248,7 @@ it("stores national metrics for a local search whose national result is cached",
   ]);
   mocks.adsSearchVolume.mockResolvedValue([]);
   await research(nationalInput, customer);
-  const callsAfterNational = mocks.upsertKeywordMetric.mock.calls.length;
+  const callsAfterNational = mocks.upsertKeywordMetrics.mock.calls.length;
 
   await research(
     { ...nationalInput, locationName: localInput.locationName },
@@ -252,9 +257,16 @@ it("stores national metrics for a local search whose national result is cached",
 
   expect(mocks.fetchRows).toHaveBeenCalledTimes(1);
   expect(
-    mocks.upsertKeywordMetric.mock.calls.slice(callsAfterNational),
+    mocks.upsertKeywordMetrics.mock.calls.slice(callsAfterNational),
   ).toEqual([
-    [expect.objectContaining({ keyword: "electrician", searchVolume: 90500 })],
+    [
+      [
+        expect.objectContaining({
+          keyword: "electrician",
+          searchVolume: 90500,
+        }),
+      ],
+    ],
   ]);
 });
 

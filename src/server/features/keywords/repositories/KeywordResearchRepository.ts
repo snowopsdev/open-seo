@@ -11,7 +11,7 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { db } from "@/db";
-import { runBatch } from "@/db/runBatch";
+import { executeInBatches, runBatch } from "@/db/runBatch";
 import {
   keywordMetrics,
   savedKeywordTagAssignments,
@@ -58,7 +58,7 @@ type SavedKeywordListRow = {
   tags: SavedKeywordTagRecord[];
 };
 
-async function upsertKeywordMetric(params: {
+type KeywordMetricUpsert = {
   projectId: string;
   keyword: string;
   locationCode: number;
@@ -69,41 +69,40 @@ async function upsertKeywordMetric(params: {
   keywordDifficulty: number | null;
   intent: string | null;
   monthlySearchesJson: string;
-}) {
+};
+
+async function upsertKeywordMetrics(rows: KeywordMetricUpsert[]) {
   const fetchedAt = new Date().toISOString();
 
-  await db
-    .insert(keywordMetrics)
-    .values({
-      projectId: params.projectId,
-      keyword: params.keyword,
-      locationCode: params.locationCode,
-      languageCode: params.languageCode,
-      searchVolume: params.searchVolume,
-      cpc: params.cpc,
-      competition: params.competition,
-      keywordDifficulty: params.keywordDifficulty,
-      intent: params.intent,
-      monthlySearches: params.monthlySearchesJson,
+  await executeInBatches(rows, (tx, row) => {
+    const metric = {
+      searchVolume: row.searchVolume,
+      cpc: row.cpc,
+      competition: row.competition,
+      keywordDifficulty: row.keywordDifficulty,
+      intent: row.intent,
+      monthlySearches: row.monthlySearchesJson,
       fetchedAt,
-    })
-    .onConflictDoUpdate({
-      target: [
-        keywordMetrics.projectId,
-        keywordMetrics.keyword,
-        keywordMetrics.locationCode,
-        keywordMetrics.languageCode,
-      ],
-      set: {
-        searchVolume: params.searchVolume,
-        cpc: params.cpc,
-        competition: params.competition,
-        keywordDifficulty: params.keywordDifficulty,
-        intent: params.intent,
-        monthlySearches: params.monthlySearchesJson,
-        fetchedAt,
-      },
-    });
+    };
+    return tx
+      .insert(keywordMetrics)
+      .values({
+        projectId: row.projectId,
+        keyword: row.keyword,
+        locationCode: row.locationCode,
+        languageCode: row.languageCode,
+        ...metric,
+      })
+      .onConflictDoUpdate({
+        target: [
+          keywordMetrics.projectId,
+          keywordMetrics.keyword,
+          keywordMetrics.locationCode,
+          keywordMetrics.languageCode,
+        ],
+        set: metric,
+      });
+  });
 }
 
 async function countSavedKeywords(projectId: string) {
@@ -362,7 +361,7 @@ async function removeSavedKeywords(
 }
 
 export const KeywordResearchRepository = {
-  upsertKeywordMetric,
+  upsertKeywordMetrics,
   countSavedKeywords,
   saveKeywordsToProject,
   listSavedKeywordsByProject,
