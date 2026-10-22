@@ -65,7 +65,6 @@ export async function getKeywordsPage(
 
   const cacheKey = await buildCacheKey("domain:keywords-page", {
     organizationId: billingCustomer.organizationId,
-    projectId: input.projectId,
     domain: target.hostname,
     scope: target.scope,
     path: target.path,

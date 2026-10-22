@@ -157,7 +157,6 @@ export async function getPagesPage(
 
   const cacheKey = await buildCacheKey("domain:pages-page", {
     organizationId: billingCustomer.organizationId,
-    projectId: input.projectId,
     domain: target.hostname,
     scope: target.scope,
     path: target.path,

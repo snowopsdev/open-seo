@@ -19,9 +19,11 @@ function extractProjectId(data: unknown) {
 export const ensureUserMiddleware = createMiddleware({
   type: "function",
 }).server(async ({ next, data }) => {
-  const context = await resolveUserContextFromHeaders(getRequest().headers);
-
   const projectId = extractProjectId(data);
+  const context = await resolveUserContextFromHeaders(
+    getRequest().headers,
+    projectId,
+  );
 
   let project: EnsuredProject | undefined;
 
@@ -29,10 +31,15 @@ export const ensureUserMiddleware = createMiddleware({
     // ADR 0001 intentionally keeps project authorization here so every
     // project-scoped server function gets the same request-scoped org+project
     // check before handlers run. Function-level middleware narrows the type.
-    project = await ProjectRepository.getProjectForOrganization(
-      projectId,
-      context.organizationId,
-    );
+    // Hosted mode usually prefetched the project for this same organization;
+    // other auth modes (and a miss) look it up here.
+    project =
+      context.project?.id === projectId
+        ? context.project
+        : ((await ProjectRepository.getProjectForOrganization(
+            projectId,
+            context.organizationId,
+          )) ?? undefined);
 
     if (!project) {
       throw new AppError("NOT_FOUND");

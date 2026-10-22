@@ -56,12 +56,11 @@ export async function saveKeywords(input: ResolvedSaveKeywordsInput) {
   );
 
   if (metricByKeyword.size > 0) {
-    await Promise.all(
-      normalizedKeywords.map(async (keyword) => {
+    await KeywordResearchRepository.upsertKeywordMetrics(
+      normalizedKeywords.flatMap((keyword) => {
         const metric = metricByKeyword.get(keyword);
-        if (!metric) return;
-
-        await KeywordResearchRepository.upsertKeywordMetric({
+        if (!metric) return [];
+        return {
           projectId: input.projectId,
           keyword,
           locationCode: input.locationCode,
@@ -72,7 +71,7 @@ export async function saveKeywords(input: ResolvedSaveKeywordsInput) {
           keywordDifficulty: metric.keywordDifficulty ?? null,
           intent: metric.intent ?? null,
           monthlySearchesJson: JSON.stringify(metric.monthlySearches ?? []),
-        });
+        };
       }),
     );
   }

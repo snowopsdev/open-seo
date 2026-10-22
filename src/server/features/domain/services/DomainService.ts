@@ -57,7 +57,6 @@ async function getOverview(
   // Callers label the metrics as domain-wide for narrower scopes.
   const cacheKey = await buildCacheKey("domain:overview", {
     organizationId: billingCustomer.organizationId,
-    projectId: input.projectId,
     domain,
     locationCode: input.locationCode,
     languageCode: input.languageCode,
@@ -145,7 +144,6 @@ async function getSuggestedKeywords(
 
   const cacheKey = await buildCacheKey("domain:keyword-suggestions", {
     organizationId: billingCustomer.organizationId,
-    projectId: input.projectId,
     domain: target.hostname,
     scope: target.scope,
     path: target.path,

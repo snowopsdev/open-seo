@@ -250,6 +250,11 @@ export const rankTrackingConfigs = pgTable(
       table.isActive,
       table.createdAt,
     ),
+    // The scheduler's due-config scan, run every cron tick.
+    index("rank_tracking_configs_due_idx").on(
+      table.isActive,
+      table.nextCheckAt,
+    ),
     uniqueIndex("rank_tracking_configs_national_idx")
       .on(table.projectId, table.domain, table.locationCode, table.languageCode)
       .where(sql`${table.locationName} IS NULL`),
